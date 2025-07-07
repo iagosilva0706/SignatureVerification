@@ -1,4 +1,4 @@
-# backend/app.py
+
 import os
 import openai
 from flask import Flask, request, jsonify
@@ -49,15 +49,15 @@ def verify_signature():
         )
 
         output = response.choices[0].message.content.strip()
-        similaridade = extrair_valor(output, r"similaridade.*?(\d\.\d{2})")
-        classificacao = extrair_valor(output, r"Classifica(?:do|ção).*?:\s*(.*)")
+        similaridade = re.search(r"similaridade.*?(\d\.\d{2})", output, re.IGNORECASE)
+        classificacao = re.search(r"Classifica(?:do|ção).*?:\s*(.*)", output, re.IGNORECASE)
 
         log = {
             "timestamp": datetime.utcnow().isoformat(),
             "resultado": {
                 "analise": output,
-                "similaridade": similaridade or "Não extraída",
-                "classificacao": classificacao or "Não extraída"
+                "similaridade": similaridade.group(1) if similaridade else "Não extraída",
+                "classificacao": classificacao.group(1) if classificacao else "Não extraída"
             }
         }
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -68,9 +68,6 @@ def verify_signature():
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
 
-def extrair_valor(texto, padrao):
-    match = re.search(padrao, texto, re.IGNORECASE)
-    return match.group(1).strip() if match else None
-
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
