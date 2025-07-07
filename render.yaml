@@ -1,0 +1,22 @@
+
+services:
+  - type: web
+    name: signature-verification-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+    plan: free
+    autoDeploy: true
+    region: oregon
+    rootDir: backend
+
+  - type: static
+    name: signature-verification-frontend
+    buildCommand: "npm install && npm run build"
+    staticPublishPath: build
+    rootDir: frontend
+    plan: free
+    autoDeploy: true
