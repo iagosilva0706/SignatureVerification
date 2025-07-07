@@ -1,3 +1,4 @@
+
 import os
 import openai
 from flask import Flask, request, jsonify
@@ -5,7 +6,6 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 import re
-import json
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -60,12 +60,15 @@ def verify_signature():
                 "classificacao": classificacao.group(1) if classificacao else "Não extraída"
             }
         }
-
-        # Escreve o log corretamente no formato JSONL
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log, ensure_ascii=False) + "\n")
+            f.write(str(log) + "\n")
+
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(str(log) + "
+)
 
         return jsonify(log["resultado"])
+
 
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
