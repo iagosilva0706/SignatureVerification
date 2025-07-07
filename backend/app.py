@@ -20,7 +20,6 @@ CORS(app)
 LOG_FILE = "logs/verificacoes.jsonl"
 os.makedirs("logs", exist_ok=True)
 
-# Rota principal
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
@@ -63,3 +62,23 @@ def verify_signature():
 
         resultado = {
             "analise": output,
+            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
+            "classificacao": classificacao.group(1) if classificacao else "Não extraída"
+        }
+
+        log = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "resultado": resultado
+        }
+
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log, ensure_ascii=False) + "\n")
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
