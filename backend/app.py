@@ -63,7 +63,12 @@ def verify_signature():
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(str(log) + "\n")
 
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(str(log) + "
+")
+
         return jsonify(log["resultado"])
+
 
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
