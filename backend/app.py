@@ -6,15 +6,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 import re
-
-load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-app = Flask(__name__)
-CORS(app)
-
-LOG_FILE = "logs/verificacoes.jsonl"
-os.makedirs("logs", exist_ok=True)
+import io
 
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
@@ -25,8 +17,12 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
+        # Lê os bytes e cria arquivos virtuais compatíveis com OpenAI
         original_bytes = original_file.read()
         amostra_bytes = amostra_file.read()
+
+        original_io = io.BytesIO(original_bytes)
+        amostra_io = io.BytesIO(amostra_bytes)
 
         prompt = (
             "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
@@ -43,8 +39,8 @@ def verify_signature():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image", "image": {"source": {"type": "file", "file": original_bytes}}},
-                        {"type": "image", "image": {"source": {"type": "file", "file": amostra_bytes}}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": original_io}}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": amostra_io}}},
                     ]
                 }
             ],
@@ -57,9 +53,9 @@ def verify_signature():
         classificacao = re.search(r"Classifica(?:do|ção).*?:\s*(.*)", output, re.IGNORECASE)
 
         resultado = {
-            "analise": str(output),
-            "similaridade": str(similaridade.group(1)) if similaridade else "Não extraída",
-            "classificacao": str(classificacao.group(1)) if classificacao else "Não extraída"
+            "analise": output,
+            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
+            "classificacao": classificacao.group(1) if classificacao else "Não extraída"
         }
 
         log = {
@@ -67,17 +63,10 @@ def verify_signature():
             "resultado": resultado
         }
 
-        try:
-            with open(LOG_FILE, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log, ensure_ascii=False) + "\n")
-        except Exception as log_error:
-            print(f"Erro ao escrever log: {log_error}")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log, ensure_ascii=False) + "\n")
 
         return jsonify(resultado)
 
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
