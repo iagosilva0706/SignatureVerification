@@ -1,13 +1,26 @@
 import os
 import openai
 import json
+import io
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 import re
-import io
 
+# Carregar variáveis de ambiente
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Criar app Flask
+app = Flask(__name__)
+CORS(app)
+
+# Diretório e ficheiro de logs
+LOG_FILE = "logs/verificacoes.jsonl"
+os.makedirs("logs", exist_ok=True)
+
+# Rota principal
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
@@ -17,12 +30,8 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        # Lê os bytes e cria arquivos virtuais compatíveis com OpenAI
-        original_bytes = original_file.read()
-        amostra_bytes = amostra_file.read()
-
-        original_io = io.BytesIO(original_bytes)
-        amostra_io = io.BytesIO(amostra_bytes)
+        original_io = io.BytesIO(original_file.read())
+        amostra_io = io.BytesIO(amostra_file.read())
 
         prompt = (
             "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
@@ -54,19 +63,3 @@ def verify_signature():
 
         resultado = {
             "analise": output,
-            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
-            "classificacao": classificacao.group(1) if classificacao else "Não extraída"
-        }
-
-        log = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "resultado": resultado
-        }
-
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log, ensure_ascii=False) + "\n")
-
-        return jsonify(resultado)
-
-    except Exception as e:
-        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
