@@ -8,15 +8,15 @@ from datetime import datetime
 from dotenv import load_dotenv
 import re
 
-# Carregar variáveis de ambiente
+# Carrega variáveis ambiente
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Criar app Flask
+# Inicializa o Flask
 app = Flask(__name__)
 CORS(app)
 
-# Diretório e ficheiro de logs
+# Caminho para o log
 LOG_FILE = "logs/verificacoes.jsonl"
 os.makedirs("logs", exist_ok=True)
 
@@ -66,9 +66,14 @@ def verify_signature():
             "classificacao": classificacao.group(1) if classificacao else "Não extraída"
         }
 
+        # Apenas strings no log
         log = {
             "timestamp": datetime.utcnow().isoformat(),
-            "resultado": resultado
+            "resultado": {
+                "analise": resultado["analise"],
+                "similaridade": resultado["similaridade"],
+                "classificacao": resultado["classificacao"]
+            }
         }
 
         with open(LOG_FILE, "a", encoding="utf-8") as f:
