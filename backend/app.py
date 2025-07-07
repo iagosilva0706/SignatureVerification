@@ -61,10 +61,7 @@ def verify_signature():
             }
         }
         with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(str(log) + "\n")
-
-        with open(LOG_FILE, "a", encoding="utf-8") as f:
-            f.write(str(log) + "
+            f.write(json.dumps(log, ensure_ascii=False) + "\n")
 )
 
         return jsonify(log["resultado"])
