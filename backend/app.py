@@ -1,7 +1,7 @@
 import os
 import openai
 import json
-import io
+import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
@@ -29,8 +29,8 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        original_io = io.BytesIO(original_file.read())
-        amostra_io = io.BytesIO(amostra_file.read())
+        original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
+        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
         prompt = (
             "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
@@ -47,8 +47,8 @@ def verify_signature():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image", "image": {"source": {"type": "file", "file": original_io}}},
-                        {"type": "image", "image": {"source": {"type": "file", "file": amostra_io}}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{original_b64}"}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{amostra_b64}"}},
                     ]
                 }
             ],
