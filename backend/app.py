@@ -1,6 +1,6 @@
-
 import os
 import openai
+import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
@@ -19,10 +19,14 @@ os.makedirs("logs", exist_ok=True)
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
-        original = request.files.get("original")
-        amostra = request.files.get("amostra")
-        if not original or not amostra:
+        original_file = request.files.get("original")
+        amostra_file = request.files.get("amostra")
+
+        if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
+
+        original_bytes = original_file.read()
+        amostra_bytes = amostra_file.read()
 
         prompt = (
             "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
@@ -39,8 +43,8 @@ def verify_signature():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image", "image": {"source": {"type": "file", "file": original.stream.read()}}},
-                        {"type": "image", "image": {"source": {"type": "file", "file": amostra.stream.read()}}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": original_bytes}}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": amostra_bytes}}},
                     ]
                 }
             ],
@@ -52,9 +56,7 @@ def verify_signature():
         similaridade = re.search(r"similaridade.*?(\d\.\d{2})", output, re.IGNORECASE)
         classificacao = re.search(r"Classifica(?:do|ção).*?:\s*(.*)", output, re.IGNORECASE)
 
-        log = {
-            "timestamp": datetime.utcnow().isoformat(),
-            resultado = {
+        resultado = {
             "analise": str(output),
             "similaridade": str(similaridade.group(1)) if similaridade else "Não extraída",
             "classificacao": str(classificacao.group(1)) if classificacao else "Não extraída"
@@ -72,7 +74,6 @@ def verify_signature():
             print(f"Erro ao escrever log: {log_error}")
 
         return jsonify(resultado)
-
 
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
