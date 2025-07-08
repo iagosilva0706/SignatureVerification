@@ -32,23 +32,21 @@ def verify_signature():
         amostra_base64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
         prompt = (
-            "Analisa duas imagens de assinaturas manuscritas com foco forense. Avalia rigorosamente os seguintes critérios:\n"
-            "1. Semelhanças estruturais (forma geral, ordem dos traços, ritmo)\n"
-            "2. Diferenças relevantes (pressão, hesitações, deformações, ângulo e proporção)\n"
-            "3. Indícios de falsificação (traços tremidos, sobreposição, hesitação visível)\n"
-            "4. Nível de confiança na autoria comum, numa escala de 0.00 a 1.00\n"
-            "5. Classificação final com base nos critérios: \n"
-            "   - “Provavelmente Legítima” (alta confiança e variações naturais)\n"
-            "   - “Suspeita” (algumas inconsistências relevantes)\n"
-            "   - “Provavelmente Falsa” (múltiplos indícios de falsificação)\n\n"
-            "Retorna os resultados neste formato JSON:\n"
-            "```json\n"
+            "Compare visualmente duas imagens de assinaturas manuscritas. "
+            "Analise com atenção traços, ritmo, proporções, inclinação, fluidez e consistência geral. "
+            "Indique:\n"
+            "- Semelhanças observadas\n"
+            "- Diferenças relevantes\n"
+            "- Pontuação de semelhança (de 0.00 a 1.00)\n"
+            "- Classificação geral: Muito Semelhantes, Algo Diferentes, Bastante Diferentes\n"
+            "Responde neste formato JSON:\n"
             "{\n"
-            "  \"similaridade\": \"<valor entre 0.00 e 1.00>\",\n"
-            "  \"classificacao\": \"<uma das 3 opções>\",\n"
-            "  \"analise\": \"<explicação objetiva e detalhada>\"\n"
-            "}" 
-        )
+            "  \"similaridade\": \"<número entre 0.00 e 1.00>\",\n"
+            "  \"classificacao\": \"<classificação>\",\n"
+            "  \"analise\": \"<explicação clara e objetiva>\"\n"
+            "}"
+)
+
 
         response = client.chat.completions.create(
             model="gpt-4o",
