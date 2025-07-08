@@ -55,7 +55,7 @@ def verify_signature():
 
         output = response.choices[0].message.content.strip()
 
-        similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d(?:\.\d+)?)", output, re.IGNORECASE)
+        similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d+(\.\d+)?)(?=\**)", output, re.IGNORECASE)
         classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
 
         resultado = {
