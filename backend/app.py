@@ -30,11 +30,22 @@ def verify_signature():
         amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
         prompt = (
-            "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
-            "Indica:\n- Pontos de semelhança e diferença entre ambas\n- Se parecem assinaturas da mesma pessoa (com explicação)\n"
-            "- Dá uma pontuação de similaridade de 0 a 1\n- Classifica como: Provavelmente Legítima, Suspeita ou Provavelmente Falsa.\n"
-            "Sê detalhado mas direto."
-        )
+            "Analisa duas imagens de assinaturas manuscritas com foco forense. Avalia rigorosamente os seguintes critérios:\n"
+            "1. Semelhanças estruturais (forma geral, ordem dos traços, ritmo)\n"
+            "2. Diferenças relevantes (pressão, hesitações, deformações, ângulo e proporção)\n"
+            "3. Indícios de falsificação (traços tremidos, sobreposição, hesitação visível)\n"
+            "4. Nível de confiança na autoria comum, numa escala de 0.00 a 1.00\n"
+            "5. Classificação final com base nos critérios:\n"
+            "- Provavelmente Legítima (alta confiança e variações naturais)\n"
+            "- Suspeita (algumas inconsistências relevantes)\n"
+            "- Provavelmente Falsa (múltiplos indícios de falsificação)\n\n"
+            "Responde estritamente neste formato JSON:\n"
+            "{\n"
+            '  "similaridade": "<valor entre 0.00 e 1.00>",\n'
+            '  "classificacao": "<uma das 3 opções>",\n'
+            '  "analise": "<explicação objetiva e detalhada>"\n'
+    "}"
+)
 
         response = openai.chat.completions.create(
             model="gpt-4o",
