@@ -57,15 +57,17 @@ def verify_signature():
             temperature=0.3
         )
  
-        output = response.choices[0].message.content.strip()
-        similaridade = re.search(r"Pontuação\s*[:\-–]?\s*(\d(?:\.\d+)?)", output, re.IGNORECASE)
-        classificacao = re.search(r"Classifica(?:do|ção).*?:\s*(.*)", output, re.IGNORECASE)
- 
-        resultado = {
-            "analise": output,
-            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
-            "classificacao": classificacao.group(1) if classificacao else "Não extraída"
-        }
+            output = response.choices[0].message.content.strip()
+
+# Correções nas expressões regulares:
+    similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d(?:\.\d+)?)", output, re.IGNORECASE)
+classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
+
+resultado = {
+    "analise": output,
+    "similaridade": similaridade.group(1) if similaridade else "Não extraída",
+    "classificacao": classificacao.group(1).strip() if classificacao else "Não extraída"
+}
  
         # Apenas strings no log
         log = {
