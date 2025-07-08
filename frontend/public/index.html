@@ -57,6 +57,19 @@
       display: block;
     }
 
+    .preview {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .preview img {
+      width: 100px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+
     .btn {
       background-color: var(--primary);
       color: white;
@@ -89,6 +102,21 @@
       border-radius: 6px;
     }
 
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    table th, table td {
+      border: 1px solid #ccd;
+      padding: 0.5rem;
+      text-align: left;
+    }
+
+    table th {
+      background-color: #dde5f4;
+    }
+
     .loading {
       display: none;
       margin-top: 1rem;
@@ -103,19 +131,24 @@
     <form id="upload-form">
       <div class="form-group">
         <label for="original">Assinatura Original:</label>
-        <input type="file" id="original" name="original" required>
+        <input type="file" id="original" name="original" required accept="image/*">
       </div>
 
       <div class="form-group">
         <label for="amostra">Amostra para Verificação:</label>
-        <input type="file" id="amostra" name="amostra" required>
+        <input type="file" id="amostra" name="amostra" required accept="image/*">
       </div>
 
-      <button type="submit" class="btn">Verificar</button>
-      <button type="button" id="limpar" class="btn secondary">Limpar</button>
+      <div class="preview">
+        <img id="preview-original" src="" alt="Pré-visualização Original" style="display: none;">
+        <img id="preview-amostra" src="" alt="Pré-visualização Amostra" style="display: none;">
+      </div>
+
+      <button type="submit" class="btn">🔍 Verificar</button>
+      <button type="button" id="limpar" class="btn secondary">🗑️ Limpar</button>
     </form>
 
-    <div id="loading" class="loading">A verificar assinatura...</div>
+    <div id="loading" class="loading">⏳ A verificar assinatura...</div>
     <div id="resultado" class="result" style="display: none;"></div>
   </main>
 
@@ -124,6 +157,20 @@
     const resultadoDiv = document.getElementById('resultado');
     const limparBtn = document.getElementById('limpar');
     const loading = document.getElementById('loading');
+    const previewOriginal = document.getElementById('preview-original');
+    const previewAmostra = document.getElementById('preview-amostra');
+
+    document.getElementById('original').addEventListener('change', e => {
+      const file = e.target.files[0];
+      previewOriginal.src = URL.createObjectURL(file);
+      previewOriginal.style.display = 'block';
+    });
+
+    document.getElementById('amostra').addEventListener('change', e => {
+      const file = e.target.files[0];
+      previewAmostra.src = URL.createObjectURL(file);
+      previewAmostra.style.display = 'block';
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -146,9 +193,11 @@
           resultadoDiv.innerHTML = `<strong>Erro:</strong> ${data.erro}`;
         } else {
           resultadoDiv.innerHTML = `
-            <p><strong>Pontuação de Similaridade:</strong> ${data.similaridade}</p>
-            <p><strong>Classificação:</strong> ${data.classificacao}</p>
-            <p><strong>Análise:</strong><br>${data.analise.replaceAll('\n', '<br>')}</p>
+            <table>
+              <tr><th>Pontuação de Similaridade</th><td>${data.similaridade}</td></tr>
+              <tr><th>Classificação</th><td>${data.classificacao}</td></tr>
+              <tr><th>Análise</th><td>${data.analise.replaceAll('\n', '<br>')}</td></tr>
+            </table>
           `;
         }
         resultadoDiv.style.display = "block";
@@ -165,8 +214,13 @@
       document.getElementById("amostra").value = "";
       resultadoDiv.style.display = "none";
       resultadoDiv.innerHTML = "";
+      previewOriginal.src = "";
+      previewAmostra.src = "";
+      previewOriginal.style.display = 'none';
+      previewAmostra.style.display = 'none';
     });
   </script>
 </body>
 </html>
+
 
