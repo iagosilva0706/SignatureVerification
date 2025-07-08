@@ -1,33 +1,31 @@
 import os
-import openai
 import json
-import base64
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from PIL import Image
+from io import BytesIO
 from datetime import datetime
-from dotenv import load_dotenv
-import re
-
-load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+import base64
+import openai
 
 app = Flask(__name__)
-CORS(app)
 
-LOG_FILE = "logs/verificacoes.jsonl"
-os.makedirs("logs", exist_ok=True)
+openai.api_key = os.getenv("OPENAI_API_KEY")
+LOG_FILE = "verificacoes_log.jsonl"
+
+def encode_image(image_file):
+    image = Image.open(image_file)
+    buffered = BytesIO()
+    image.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
-        original_file = request.files.get("original")
-        amostra_file = request.files.get("amostra")
+        original_file = request.files["original"]
+        amostra_file = request.files["amostra"]
 
-        if not original_file or not amostra_file:
-            return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
-
-        original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
-        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
+        original_encoded = encode_image(original_file)
+        amostra_encoded = encode_image(amostra_file)
 
         prompt = (
             "Analisa duas imagens de assinaturas manuscritas com foco forense. Avalia rigorosamente os seguintes critérios:\n"
@@ -35,45 +33,43 @@ def verify_signature():
             "2. Diferenças relevantes (pressão, hesitações, deformações, ângulo e proporção)\n"
             "3. Indícios de falsificação (traços tremidos, sobreposição, hesitação visível)\n"
             "4. Nível de confiança na autoria comum, numa escala de 0.00 a 1.00\n"
-            "5. Classificação final com base nos critérios:\n"
-            "- Provavelmente Legítima (alta confiança e variações naturais)\n"
-            "- Suspeita (algumas inconsistências relevantes)\n"
-            "- Provavelmente Falsa (múltiplos indícios de falsificação)\n\n"
-            "Responde estritamente neste formato JSON:\n"
+            "5. Classificação final com base nos critérios: \n"
+            "   - 'Provavelmente Legítima' (alta confiança e variações naturais)\n"
+            "   - 'Suspeita' (algumas inconsistências relevantes)\n"
+            "   - 'Provavelmente Falsa' (múltiplos indícios de falsificação)\n\n"
+            "Retorna os resultados *exatamente* neste formato JSON, sem texto adicional:\n"
             "{\n"
-            '  "similaridade": "<valor entre 0.00 e 1.00>",\n'
-            '  "classificacao": "<uma das 3 opções>",\n'
-            '  "analise": "<explicação objetiva e detalhada>"\n'
-    "}"
-)
+            "  \"similaridade\": \"<valor entre 0.00 e 1.00>\",\n"
+            "  \"classificacao\": \"<uma das 3 opções>\",\n"
+            "  \"analise\": \"<explicação objetiva e detalhada>\"\n"
+            "}"
+        )
 
-        response = openai.chat.completions.create(
-            model="gpt-4o",
+        response = openai.ChatCompletion.create(
+            model="gpt-4-vision-preview",
             messages=[
-                {"role": "system", "content": "És um perito em grafoscopia e verificação de assinaturas."},
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{original_b64}"}},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{amostra_b64}"}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_encoded}"}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{amostra_encoded}"}}
                     ]
                 }
             ],
-            max_tokens=1000,
-            temperature=0.3
+            max_tokens=1000
         )
 
         output = response.choices[0].message.content.strip()
 
-        similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d+(\.\d+)?)(?=\**)", output, re.IGNORECASE)
-        classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
-
-        resultado = {
-            "analise": output,
-            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
-            "classificacao": classificacao.group(1).strip() if classificacao else "Não extraída"
-        }
+        try:
+            resultado = json.loads(output)
+        except json.JSONDecodeError:
+            resultado = {
+                "similaridade": "Não extraída",
+                "classificacao": "Não extraída",
+                "analise": output
+            }
 
         log = {
             "timestamp": datetime.utcnow().isoformat(),
