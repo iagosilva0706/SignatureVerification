@@ -31,7 +31,11 @@ def verify_signature():
 
         # Prompt atualizado
         prompt = (
+            
+            "Compare visually two handwritten signature images. "
             "Compare two handwritten signature images visually.\n"
+            "Analyze carefully the stroke pressure and thickness, writing rhythm and fluidity, proportions between letters, overall slant, spacing, and consistency of graphical style. "
+            "Pay close attention to any signs of forgery, such as unnatural tremors, hesitation marks, inconsistent pressure, interrupted flow, or abnormal angularity.\n"
             "Carefully assess visual characteristics such as:\n"
             "- Stroke pressure and thickness\n"
             "- Writing rhythm and flow\n"
