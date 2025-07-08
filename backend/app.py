@@ -31,17 +31,25 @@ def verify_signature():
 
         # Prompt atualizado
         prompt = (
-            "Compare visually two handwritten signature images. "
-            "Analyze carefully the stroke pressure and thickness, writing rhythm and fluidity, proportions between letters, overall slant, spacing, and consistency of graphical style. "
-            "Pay close attention to any signs of forgery, such as unnatural tremors, hesitation marks, inconsistent pressure, interrupted flow, or abnormal angularity.\n"
-            "Provide your analysis in the following JSON format:\n"
+            "Compare two handwritten signature images visually.\n"
+            "Carefully assess visual characteristics such as:\n"
+            "- Stroke pressure and thickness\n"
+            "- Writing rhythm and flow\n"
+            "- Letter and word proportions\n"
+            "- General slant\n"
+            "- Consistency in graphical style\n"
+            "Provide:\n"
+            "- Noted similarities\n"
+            "- Relevant differences\n"
+            "- A similarity score (0.00 to 1.00)\n"
+            "- Overall classification: Very Similar, Somewhat Different, Clearly Different\n"
+            "Respond strictly in this JSON format:\n"
             "{\n"
-            "  \"similarity_score\": \"<value between 0.00 and 1.00>\",\n"
-            "  \"classification\": \"<Very Similar | Somewhat Different | Clearly Different>\",\n"
-            "  \"analysis\": \"<objective and detailed explanation>\"\n"
-            "}\n"
-            "Be strict in your assessment: if there are clear differences in style, structure, or fluency, reduce the similarity score and explain why."
-)
+            "  \"similaridade\": \"<score between 0.00 and 1.00>\",\n"
+            "  \"classificacao\": \"<classification>\",\n"
+            "  \"analise\": \"<clear and concise explanation>\"\n"
+            "}"
+        )
 
         response = client.chat.completions.create(
             model="gpt-4o",
