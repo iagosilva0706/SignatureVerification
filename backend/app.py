@@ -1,26 +1,21 @@
 import os
 import openai
 import json
-import io
-import base64
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 import re
- 
-# Carrega variáveis ambiente
+
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
- 
-# Inicializa o Flask
+
 app = Flask(__name__)
 CORS(app)
- 
-# Caminho para o log
+
 LOG_FILE = "logs/verificacoes.jsonl"
 os.makedirs("logs", exist_ok=True)
- 
+
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
@@ -59,7 +54,6 @@ def verify_signature():
 
         output = response.choices[0].message.content.strip()
 
-        # Regex melhorada para extrair pontuação e classificação
         similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d(?:\.\d+)?)", output, re.IGNORECASE)
         classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
 
@@ -81,3 +75,7 @@ def verify_signature():
 
     except Exception as e:
         return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
