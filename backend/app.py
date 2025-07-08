@@ -26,20 +26,20 @@ def verify_signature():
     try:
         original_file = request.files.get("original")
         amostra_file = request.files.get("amostra")
- 
+
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
- 
-        original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
-        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
- 
+
+        original_bytes = original_file.read()
+        amostra_bytes = amostra_file.read()
+
         prompt = (
             "Estas são duas assinaturas manuscritas. Analisa visualmente os traços, a coerência estrutural, proporções e fluidez.\n"
             "Indica:\n- Pontos de semelhança e diferença entre ambas\n- Se parecem assinaturas da mesma pessoa (com explicação)\n"
             "- Dá uma pontuação de similaridade de 0 a 1\n- Classifica como: Provavelmente Legítima, Suspeita ou Provavelmente Falsa.\n"
             "Sê detalhado mas direto."
         )
- 
+
         response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -48,35 +48,30 @@ def verify_signature():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{original_b64}"}},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{amostra_b64}"}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": original_bytes}}},
+                        {"type": "image", "image": {"source": {"type": "file", "file": amostra_bytes}}},
                     ]
                 }
             ],
             max_tokens=1000,
             temperature=0.3
         )
- 
-            output = response.choices[0].message.content.strip()
 
-# Correções nas expressões regulares:
-    similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d(?:\.\d+)?)", output, re.IGNORECASE)
-classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
+        output = response.choices[0].message.content.strip()
 
-resultado = {
-    "analise": output,
-    "similaridade": similaridade.group(1) if similaridade else "Não extraída",
-    "classificacao": classificacao.group(1).strip() if classificacao else "Não extraída"
-}
- 
-        # Apenas strings no log
+        # Regex melhorada para extrair pontuação e classificação
+        similaridade = re.search(r"Pontuação\s+de\s+Similaridade.*?[-–—]?\s*\**(\d(?:\.\d+)?)", output, re.IGNORECASE)
+        classificacao = re.search(r"Classifica(?:do|ção).*?:\s*[-–—]?\s*\**(.*)", output, re.IGNORECASE)
+
+        resultado = {
+            "analise": output,
+            "similaridade": similaridade.group(1) if similaridade else "Não extraída",
+            "classificacao": classificacao.group(1).strip() if classificacao else "Não extraída"
+        }
+
         log = {
             "timestamp": datetime.utcnow().isoformat(),
-            "resultado": {
-                "analise": resultado["analise"],
-                "similaridade": resultado["similaridade"],
-                "classificacao": resultado["classificacao"]
-            }
+            "resultado": resultado
         }
 
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -85,8 +80,4 @@ resultado = {
         return jsonify(resultado)
 
     except Exception as e:
-        return jsonify({"erro": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
