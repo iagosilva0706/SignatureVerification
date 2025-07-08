@@ -5,11 +5,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
-import re
 from openai import OpenAI
 
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
@@ -27,11 +25,12 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        # Converter para base64
-        original_base64 = base64.b64encode(original_file.read()).decode("utf-8")
-        amostra_base64 = base64.b64encode(amostra_file.read()).decode("utf-8")
+        # Converter imagens para base64
+        original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
+        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
-                prompt = (
+        # Prompt atualizado
+        prompt = (
             "Compare two handwritten signature images visually.\n"
             "Carefully assess visual characteristics such as:\n"
             "- Stroke pressure and thickness\n"
@@ -52,7 +51,7 @@ def verify_signature():
             "}"
         )
 
-        response = openai.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a handwriting forensics expert specializing in signature verification."},
@@ -60,18 +59,8 @@ def verify_signature():
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{original_b64}"
-                            }
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{amostra_b64}"
-                            }
-                        },
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"}},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{amostra_b64}"}},
                     ]
                 }
             ],
