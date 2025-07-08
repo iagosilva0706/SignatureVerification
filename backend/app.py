@@ -31,49 +31,63 @@ def verify_signature():
         original_base64 = base64.b64encode(original_file.read()).decode("utf-8")
         amostra_base64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
-        prompt = (
-            "Compare visualmente duas imagens de assinaturas manuscritas. "
-            "Avalia com atenção características visuais como a pressão e espessura dos traços, o ritmo com que a escrita flui, a proporção entre letras e palavras, a inclinação geral do texto e a consistência no estilo gráfico usado em ambas as assinaturas."
-            "Indique:\n"
-            "- Semelhanças observadas\n"
-            "- Diferenças relevantes\n"
-            "- Pontuação de semelhança (de 0.00 a 1.00)\n"
-            "- Classificação geral: Muito Semelhantes, Algo Diferentes, Bastante Diferentes\n"
-            "Responde neste formato JSON:\n"
+                prompt = (
+            "Compare two handwritten signature images visually.\n"
+            "Carefully assess visual characteristics such as:\n"
+            "- Stroke pressure and thickness\n"
+            "- Writing rhythm and flow\n"
+            "- Letter and word proportions\n"
+            "- General slant\n"
+            "- Consistency in graphical style\n"
+            "Provide:\n"
+            "- Noted similarities\n"
+            "- Relevant differences\n"
+            "- A similarity score (0.00 to 1.00)\n"
+            "- Overall classification: Very Similar, Somewhat Different, Clearly Different\n"
+            "Respond strictly in this JSON format:\n"
             "{\n"
-            "  \"similaridade\": \"<número entre 0.00 e 1.00>\",\n"
-            "  \"classificacao\": \"<classificação>\",\n"
-            "  \"analise\": \"<explicação clara e objetiva>\"\n"
+            "  \"similaridade\": \"<score between 0.00 and 1.00>\",\n"
+            "  \"classificacao\": \"<classification>\",\n"
+            "  \"analise\": \"<clear and concise explanation>\"\n"
             "}"
-)
+        )
 
-
-        response = client.chat.completions.create(
+        response = openai.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "És um perito em grafoscopia e verificação de assinaturas."},
+                {"role": "system", "content": "You are a handwriting forensics expert specializing in signature verification."},
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_base64}"}},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{amostra_base64}"}},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{original_b64}"
+                            }
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{amostra_b64}"
+                            }
+                        },
                     ]
                 }
             ],
-            max_tokens=1000,
-            temperature=0.3
+            temperature=0.3,
+            max_tokens=1000
         )
 
-        output = response.choices[0].message.content.strip()
+        output_raw = response.choices[0].message.content.strip()
 
         try:
-            resultado = json.loads(output)
+            resultado = json.loads(output_raw)
         except json.JSONDecodeError:
             resultado = {
-                "analise": output,
-                "similaridade": re.search(r"[\d\.]+", output).group(0) if re.search(r"[\d\.]+", output) else "Não extraída",
-                "classificacao": re.search(r"(Provavelmente Legítima|Suspeita|Provavelmente Falsa)", output).group(0) if re.search(r"(Provavelmente Legítima|Suspeita|Provavelmente Falsa)", output) else "Não extraída"
+                "similaridade": "Not extracted",
+                "classificacao": "Not extracted",
+                "analise": output_raw
             }
 
         log = {
@@ -87,7 +101,7 @@ def verify_signature():
         return jsonify(resultado)
 
     except Exception as e:
-        return jsonify({"erro": f"Erro interno: {str(e)}"}), 500
+        return jsonify({"erro": f"Internal error: {str(e)}"}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
