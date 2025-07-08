@@ -33,7 +33,7 @@ def verify_signature():
 
         prompt = (
             "Compare visualmente duas imagens de assinaturas manuscritas. "
-            "Analise com atenção traços, ritmo, proporções, inclinação, fluidez e consistência geral. "
+            "Avalia com atenção características visuais como a pressão e espessura dos traços, o ritmo com que a escrita flui, a proporção entre letras e palavras, a inclinação geral do texto e a consistência no estilo gráfico usado em ambas as assinaturas."
             "Indique:\n"
             "- Semelhanças observadas\n"
             "- Diferenças relevantes\n"
