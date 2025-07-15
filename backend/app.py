@@ -10,6 +10,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from PIL import Image
+from skimage.metrics import structural_similarity as compare_ssim
 
 load_dotenv()
 
@@ -67,20 +68,11 @@ def compare_signatures(image1_path, image2_path):
     img1 = cv2.imread(image1_path, 0)
     img2 = cv2.imread(image2_path, 0)
 
-    orb = cv2.ORB_create()
-    kp1, des1 = orb.detectAndCompute(img1, None)
-    kp2, des2 = orb.detectAndCompute(img2, None)
+    img1 = cv2.resize(img1, (500, 200))
+    img2 = cv2.resize(img2, (500, 200))
 
-    if des1 is None or des2 is None:
-        return 0.0
-
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(des1, des2)
-
-    matches = sorted(matches, key=lambda x: x.distance)
-    score = len(matches) / max(len(kp1), len(kp2))
-
-    return round(score, 2)
+    score, _ = compare_ssim(img1, img2, full=True)
+    return round(score, 4)
 
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
@@ -101,9 +93,9 @@ def verify_signature():
 
         score = compare_signatures(temp_original, temp_amostra)
 
-        if score > 0.4:
+        if score > 0.75:
             classification = "Very Similar"
-        elif score > 0.2:
+        elif score > 0.5:
             classification = "Somewhat Different"
         else:
             classification = "Clearly Different"
@@ -111,7 +103,7 @@ def verify_signature():
         resultado = {
             "similaridade": str(score),
             "classificacao": classification,
-            "analise": "Similarity score based on ORB feature matching."
+            "analise": "Similarity score based on SSIM (Structural Similarity Index)."
         }
 
         log = {
