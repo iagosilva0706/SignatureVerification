@@ -10,7 +10,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from PIL import Image
-from skimage.metrics import structural_similarity as compare_ssim
+from skimage.metrics import structural_similarity
 
 load_dotenv()
 
@@ -71,7 +71,7 @@ def compare_signatures(image1_path, image2_path):
     img1 = cv2.resize(img1, (500, 200))
     img2 = cv2.resize(img2, (500, 200))
 
-    score, _ = compare_ssim(img1, img2, full=True)
+    score, _ = structural_similarity(img1, img2, full=True)
     return round(score, 4)
 
 @app.route("/verify_signature", methods=["POST"])
