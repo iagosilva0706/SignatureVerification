@@ -1,43 +1,55 @@
 import React, { useState } from 'react';
 
 function App() {
-  const [imageUrl, setImageUrl] = useState(null);
+  const [result, setResult] = useState(null);
 
-  const uploadImage = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return alert('Select an image.');
+  const uploadImages = async (event) => {
+    const originalFile = document.getElementById('originalFile').files[0];
+    const signatureFile = document.getElementById('signatureFile').files[0];
+
+    if (!originalFile || !signatureFile) {
+      alert('Please select both Original and Signature images.');
+      return;
+    }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('Original', originalFile);
+    formData.append('Signature', signatureFile);
 
-    const response = await fetch('http://localhost:8000/extract_signature', {
+    const response = await fetch('http://localhost:8000/verify_signature', {
       method: 'POST',
       body: formData
     });
 
     if (!response.ok) return alert('Upload failed.');
 
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    setImageUrl(url);
+    const data = await response.json();
+    setResult(data);
   };
 
   return (
     <div className="App">
-      <h1>Signature Extraction</h1>
-      <p>Select an image with a handwritten signature to test extraction.</p>
+      <h1>Signature Verification</h1>
+      <p>Select the two images to verify:</p>
 
-      <input type="file" onChange={uploadImage} accept="image/*" />
+      <div>
+        <label>Original Image:</label>
+        <input type="file" id="originalFile" accept="image/*" />
+      </div>
 
-      {imageUrl && (
+      <div>
+        <label>Signature Image:</label>
+        <input type="file" id="signatureFile" accept="image/*" />
+      </div>
+
+      <button onClick={uploadImages}>Verify Signature</button>
+
+      {result && (
         <div>
-          <h2>Cropped Signature:</h2>
-          <img
-            src={imageUrl}
-            alt="Signature"
-            style={{ maxWidth: '400px', cursor: 'pointer' }}
-            onClick={() => window.open(imageUrl, '_blank')}
-          />
+          <h2>Verification Result:</h2>
+          <p><strong>Score:</strong> {result.score}</p>
+          <p><strong>Status:</strong> {result.status}</p>
+          <p><strong>Explanation:</strong> {result.explanation}</p>
         </div>
       )}
     </div>
