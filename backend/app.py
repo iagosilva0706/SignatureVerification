@@ -9,6 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
+# Load environment and API setup
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -18,37 +19,53 @@ CORS(app)
 LOG_FILE = "logs/verificacoes.jsonl"
 os.makedirs("logs", exist_ok=True)
 
-# Function to automatically crop the handwritten signature from the "amostra" image
-def crop_signature_from_amostra(file_storage):
-    # Read image bytes and convert to OpenCV image
+# Function to extract handwritten signature (excluding printed labels)
+def extract_cropped_signature(file_storage):
     file_bytes = np.frombuffer(file_storage.read(), np.uint8)
     image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    height, width = image.shape[:2]
 
-    # Convert to grayscale and threshold
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # Focus on lower section, but allow adjusting as needed
+    roi = image[int(height * 0.60):int(height * 0.95), 0:width]
+
+    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
 
-    # Find contours of handwriting
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    min_area = 500  # Minimum contour area to consider as part of signature
-    bounding_boxes = [cv2.boundingRect(c) for c in contours if cv2.contourArea(c) > min_area]
+    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    min_area = 250
+    max_height = 0.4 * roi.shape[0]
 
-    # Create a combined bounding box around all significant contours
+    bounding_boxes = [
+        cv2.boundingRect(c) for c in contours
+        if min_area < cv2.contourArea(c) and cv2.boundingRect(c)[3] < max_height
+    ]
+
     if bounding_boxes:
         x_vals = [x for x, y, w, h in bounding_boxes] + [x + w for x, y, w, h in bounding_boxes]
         y_vals = [y for x, y, w, h in bounding_boxes] + [y + h for x, y, w, h in bounding_boxes]
-        x_min, x_max = min(x_vals), max(x_vals)
-        y_min, y_max = min(y_vals), max(y_vals)
-        signature_crop = image[y_min:y_max, x_min:x_max]
-    else:
-        signature_crop = image  # fallback: no contours found, return full image
+        x_min, x_max = max(min(x_vals) - 5, 0), min(max(x_vals) + 5, width)
+        y_min, y_max = max(min(y_vals) - 10, 0), min(max(y_vals) + 5, roi.shape[0])
 
-    # Encode cropped image to base64
-    _, buffer = cv2.imencode('.png', signature_crop)
-    b64_cropped = base64.b64encode(buffer).decode('utf-8')
+        y_min += int(height * 0.60)
+        y_max += int(height * 0.60)
 
-    return b64_cropped
+        cropped_handwriting = image[y_min:y_max, x_min:x_max]
+
+        cropped_gray = cv2.cvtColor(cropped_handwriting, cv2.COLOR_BGR2GRAY)
+        _, handwriting_mask = cv2.threshold(cropped_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        handwriting_mask_inv = cv2.bitwise_not(handwriting_mask)
+        final_signature = cv2.cvtColor(handwriting_mask_inv, cv2.COLOR_GRAY2BGR)
+
+        _, buffer = cv2.imencode('.png', final_signature)
+        b64_cropped = base64.b64encode(buffer).decode('utf-8')
+        return b64_cropped
+
+    # fallback: encode whole ROI
+    _, buffer = cv2.imencode('.png', roi)
+    return base64.b64encode(buffer).decode('utf-8')
 
 
 @app.route("/verify_signature", methods=["POST"])
@@ -60,14 +77,12 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        # Convert "original" image to base64 (no cropping)
+        # Convert images to base64
         original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
+        amostra_b64 = extract_cropped_signature(amostra_file)
+        amostra_file.seek(0)
 
-        # Crop "amostra" image before converting to base64
-        amostra_b64 = crop_signature_from_amostra(amostra_file)
-        amostra_file.seek(0)  # Reset pointer in case needed later
-
-        # Prompt to OpenAI
+        # OpenAI prompt
         prompt = (
             "Compare visually two handwritten signature images. "
             "Analyze carefully the stroke pressure and thickness, writing rhythm and fluidity, proportions between letters, overall slant, spacing, and consistency of graphical style. "
