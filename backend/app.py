@@ -9,11 +9,9 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
-from openai import OpenAI
-from PIL import Image  # Added dependency
+from PIL import Image
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
 CORS(app)
@@ -65,6 +63,25 @@ def extract_signature_route():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def compare_signatures(image1_path, image2_path):
+    img1 = cv2.imread(image1_path, 0)
+    img2 = cv2.imread(image2_path, 0)
+
+    orb = cv2.ORB_create()
+    kp1, des1 = orb.detectAndCompute(img1, None)
+    kp2, des2 = orb.detectAndCompute(img2, None)
+
+    if des1 is None or des2 is None:
+        return 0.0
+
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1, des2)
+
+    matches = sorted(matches, key=lambda x: x.distance)
+    score = len(matches) / max(len(kp1), len(kp2))
+
+    return round(score, 2)
+
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
     try:
@@ -74,40 +91,28 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
-        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
+        temp_original = f"temp_{uuid.uuid4().hex}.png"
+        temp_amostra = f"temp_{uuid.uuid4().hex}.png"
 
-        prompt = (
-            "Compare visually two handwritten signature images. "
-            "Analyze carefully the stroke pressure and thickness, writing rhythm and fluidity, proportions between letters, overall slant, spacing, and consistency of graphical style. "
-            "Pay attention to signs of forgery: unnatural tremors, hesitation marks, inconsistent pressure, interrupted flow, or abnormal angularity. "
-            "Respond strictly in JSON format with similarity score, classification, and analysis."
-        )
+        with open(temp_original, "wb") as buffer:
+            shutil.copyfileobj(original_file.stream, buffer)
+        with open(temp_amostra, "wb") as buffer:
+            shutil.copyfileobj(amostra_file.stream, buffer)
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "You are a handwriting forensics expert specializing in signature verification."},
-                {"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"}},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{amostra_b64}"}},
-                ]}
-            ],
-            temperature=0.3,
-            max_tokens=1000
-        )
+        score = compare_signatures(temp_original, temp_amostra)
 
-        output_raw = response.choices[0].message.content.strip()
+        if score > 0.4:
+            classification = "Very Similar"
+        elif score > 0.2:
+            classification = "Somewhat Different"
+        else:
+            classification = "Clearly Different"
 
-        try:
-            resultado = json.loads(output_raw)
-        except json.JSONDecodeError:
-            resultado = {
-                "similaridade": "Not extracted",
-                "classificacao": "Not extracted",
-                "analise": output_raw
-            }
+        resultado = {
+            "similaridade": str(score),
+            "classificacao": classification,
+            "analise": "Similarity score based on ORB feature matching."
+        }
 
         log = {
             "timestamp": datetime.utcnow().isoformat(),
@@ -116,6 +121,9 @@ def verify_signature():
 
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(log, ensure_ascii=False) + "\n")
+
+        os.remove(temp_original)
+        os.remove(temp_amostra)
 
         return jsonify(resultado)
 
