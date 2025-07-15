@@ -16,7 +16,7 @@ function App() {
     formData.append('Original', originalFile, originalFile.name);
     formData.append('Signature', signatureFile, signatureFile.name);
 
-    const response = await fetch('http://localhost:8000/verify_signature', {
+    const response = await fetch('https://signatureverificationbackend.onrender.com', {
       method: 'POST',
       body: formData
     });
