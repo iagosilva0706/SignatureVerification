@@ -5,6 +5,7 @@ import uuid
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from skimage.metrics import structural_similarity
+import traceback
 
 # Initialize Flask App
 app = Flask(__name__)
@@ -52,6 +53,9 @@ def verify_signature():
         original_image = cv2.imdecode(np.frombuffer(original_file.read(), np.uint8), cv2.IMREAD_COLOR)
         signature_image = cv2.imdecode(np.frombuffer(signature_file.read(), np.uint8), cv2.IMREAD_COLOR)
 
+        if original_image is None or signature_image is None:
+            raise ValueError("Failed to decode one or both images. Ensure correct image formats.")
+
         cropped_signature = extract_signature(signature_image)
         score, explanation = compare_signatures(original_image, cropped_signature)
 
@@ -64,6 +68,7 @@ def verify_signature():
         })
 
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
