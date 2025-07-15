@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 function App() {
   const [result, setResult] = useState(null);
 
-  const uploadImages = async (event) => {
+  const uploadImages = async () => {
     const originalFile = document.getElementById('originalFile').files[0];
     const signatureFile = document.getElementById('signatureFile').files[0];
 
@@ -13,15 +13,18 @@ function App() {
     }
 
     const formData = new FormData();
-    formData.append('Original', originalFile);
-    formData.append('Signature', signatureFile);
+    formData.append('Original', originalFile, originalFile.name);
+    formData.append('Signature', signatureFile, signatureFile.name);
 
     const response = await fetch('http://localhost:8000/verify_signature', {
       method: 'POST',
       body: formData
     });
 
-    if (!response.ok) return alert('Upload failed.');
+    if (!response.ok) {
+      alert('Upload failed.');
+      return;
+    }
 
     const data = await response.json();
     setResult(data);
