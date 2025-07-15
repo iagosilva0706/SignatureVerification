@@ -5,14 +5,10 @@ import uuid
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from skimage.metrics import structural_similarity
-from ultralytics import YOLO
 
 # Initialize Flask App
 app = Flask(__name__)
 CORS(app)
-
-# Load YOLO Model (You should train your model and replace 'signature_model.pt')
-yolo_model = YOLO('signature_model.pt')
 
 # Helper: Preprocess Image
 def preprocess_image(image):
@@ -20,16 +16,18 @@ def preprocess_image(image):
     _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     return thresh
 
-# Helper: Extract Signature using YOLO
+# Helper: Extract Signature using Simple Contour Detection
 def extract_signature(image):
-    temp_file = f"temp_{uuid.uuid4().hex}.png"
-    cv2.imwrite(temp_file, image)
-    results = yolo_model(temp_file)
-    os.remove(temp_file)
-    if not results[0].boxes.xyxy.tolist():
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if not contours:
         raise ValueError("No signature detected.")
-    x1, y1, x2, y2 = map(int, results[0].boxes.xyxy[0])
-    cropped = image[y1:y2, x1:x2]
+
+    largest_contour = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+    cropped = image[y:y+h, x:x+w]
     return cropped
 
 # Helper: Compare using SSIM + Explanation
