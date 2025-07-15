@@ -3,13 +3,14 @@ import json
 import base64
 import cv2
 import numpy as np
-from flask import Flask, request, jsonify
+import shutil
+import uuid
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load environment and API setup
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -19,54 +20,49 @@ CORS(app)
 LOG_FILE = "logs/verificacoes.jsonl"
 os.makedirs("logs", exist_ok=True)
 
-# Function to extract handwritten signature (excluding printed labels)
-def extract_cropped_signature(file_storage):
-    file_bytes = np.frombuffer(file_storage.read(), np.uint8)
-    image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    height, width = image.shape[:2]
+def extract_signature(image_path, output_path):
+    image = cv2.imread(image_path)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    # Focus on lower section, but allow adjusting as needed
-    roi = image[int(height * 0.60):int(height * 0.95), 0:width]
+    signature_contour = None
+    max_area = 0
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if 500 < area < 50000:
+            if area > max_area:
+                max_area = area
+                signature_contour = cnt
 
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-    _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-    cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+    if signature_contour is None:
+        raise ValueError("No signature found.")
 
-    contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    min_area = 250
-    max_height = 0.4 * roi.shape[0]
+    x, y, w, h = cv2.boundingRect(signature_contour)
+    cropped = image[y:y+h, x:x+w]
+    cv2.imwrite(output_path, cropped)
 
-    bounding_boxes = [
-        cv2.boundingRect(c) for c in contours
-        if min_area < cv2.contourArea(c) and cv2.boundingRect(c)[3] < max_height
-    ]
+@app.route("/extract_signature", methods=["POST"])
+def extract_signature_route():
+    try:
+        uploaded_file = request.files.get("file")
+        if not uploaded_file:
+            return jsonify({"error": "No file uploaded."}), 400
 
-    if bounding_boxes:
-        x_vals = [x for x, y, w, h in bounding_boxes] + [x + w for x, y, w, h in bounding_boxes]
-        y_vals = [y for x, y, w, h in bounding_boxes] + [y + h for x, y, w, h in bounding_boxes]
-        x_min, x_max = max(min(x_vals) - 5, 0), min(max(x_vals) + 5, width)
-        y_min, y_max = max(min(y_vals) - 10, 0), min(max(y_vals) + 5, roi.shape[0])
+        temp_input = f"temp_{uuid.uuid4().hex}.png"
+        temp_output = f"cropped_{uuid.uuid4().hex}.png"
 
-        y_min += int(height * 0.60)
-        y_max += int(height * 0.60)
+        with open(temp_input, "wb") as buffer:
+            shutil.copyfileobj(uploaded_file.stream, buffer)
 
-        cropped_handwriting = image[y_min:y_max, x_min:x_max]
+        extract_signature(temp_input, temp_output)
+        os.remove(temp_input)
 
-        cropped_gray = cv2.cvtColor(cropped_handwriting, cv2.COLOR_BGR2GRAY)
-        _, handwriting_mask = cv2.threshold(cropped_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        handwriting_mask_inv = cv2.bitwise_not(handwriting_mask)
-        final_signature = cv2.cvtColor(handwriting_mask_inv, cv2.COLOR_GRAY2BGR)
+        return send_file(temp_output, mimetype='image/png', as_attachment=True, download_name='signature.png')
 
-        _, buffer = cv2.imencode('.png', final_signature)
-        b64_cropped = base64.b64encode(buffer).decode('utf-8')
-        return b64_cropped
-
-    # fallback: encode whole ROI
-    _, buffer = cv2.imencode('.png', roi)
-    return base64.b64encode(buffer).decode('utf-8')
-
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/verify_signature", methods=["POST"])
 def verify_signature():
@@ -77,47 +73,25 @@ def verify_signature():
         if not original_file or not amostra_file:
             return jsonify({"erro": "Ambas as imagens são obrigatórias."}), 400
 
-        # Convert images to base64
         original_b64 = base64.b64encode(original_file.read()).decode("utf-8")
-        amostra_b64 = extract_cropped_signature(amostra_file)
-        amostra_file.seek(0)
+        amostra_b64 = base64.b64encode(amostra_file.read()).decode("utf-8")
 
-        # OpenAI prompt
         prompt = (
             "Compare visually two handwritten signature images. "
             "Analyze carefully the stroke pressure and thickness, writing rhythm and fluidity, proportions between letters, overall slant, spacing, and consistency of graphical style. "
-            "Pay close attention to any signs of forgery, such as unnatural tremors, hesitation marks, inconsistent pressure, interrupted flow, or abnormal angularity.\n"
-            "Carefully assess visual characteristics such as:\n"
-            "- Stroke pressure and thickness\n"
-            "- Writing rhythm and flow\n"
-            "- Letter and word proportions\n"
-            "- General slant\n"
-            "- Consistency in graphical style\n"
-            "Provide:\n"
-            "- Noted similarities\n"
-            "- Relevant differences\n"
-            "- A similarity score (0.00 to 1.00)\n"
-            "- Overall classification: Very Similar, Somewhat Different, Clearly Different\n"
-            "Respond strictly in this JSON format:\n"
-            "{\n"
-            "  \"similaridade\": \"<score between 0.00 and 1.00>\",\n"
-            "  \"classificacao\": \"<classification>\",\n"
-            "  \"analise\": \"<clear and concise explanation>\"\n"
-            "}"
+            "Pay attention to signs of forgery: unnatural tremors, hesitation marks, inconsistent pressure, interrupted flow, or abnormal angularity. "
+            "Respond strictly in JSON format with similarity score, classification, and analysis."
         )
 
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": "You are a handwriting forensics expert specializing in signature verification."},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"}},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{amostra_b64}"}},
-                    ]
-                }
+                {"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{original_b64}"}},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{amostra_b64}"}},
+                ]}
             ],
             temperature=0.3,
             max_tokens=1000
@@ -146,7 +120,6 @@ def verify_signature():
 
     except Exception as e:
         return jsonify({"erro": f"Internal error: {str(e)}"}), 500
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
