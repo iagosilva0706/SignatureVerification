@@ -68,8 +68,9 @@ def verify_signature():
         })
 
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        error_message = traceback.format_exc()
+        print(error_message)
+        return jsonify({"error": error_message}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
