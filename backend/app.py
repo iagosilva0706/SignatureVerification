@@ -10,6 +10,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
+from PIL import Image  # Added dependency
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
