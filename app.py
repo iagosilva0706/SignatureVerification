@@ -1,3 +1,4 @@
+# app.py
 
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -6,6 +7,10 @@ import numpy as np
 import tensorflow as tf
 import os
 import uuid
+
+# Download model if not present
+if not os.path.exists('model.h5'):
+    os.system("wget https://drive.google.com/file/d/1O6F8-dcxAe2jwjrBV6jZLqmKFw8WtaHl/view?usp=drive_link/model.h5 -O model.h5")
 
 # Load model once
 model = tf.keras.models.load_model('model.h5')
